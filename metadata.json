@@ -1,0 +1,5 @@
+{
+  "name": "Creative Collage Generator",
+  "description": "Upload images and provide text to generate a stylized collage for advertisements or posters using AI. Apply various artistic effects like grunge, silhouette, and smoke overlays to create a unique design.",
+  "requestFramePermissions": []
+}
