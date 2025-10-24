@@ -6,32 +6,59 @@ interface ImageUploaderProps {
   onImagesSelected: (images: ImageFile[]) => void;
 }
 
-const fileToBase64 = (file: File): Promise<string> => {
+// Compress image before converting to base64
+const compressImage = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
-    reader.onload = () => {
-      const result = reader.result as string;
-      // remove the "data:mime/type;base64," part
-      resolve(result.split(',')[1]);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 1200;
+        const MAX_HEIGHT = 1200;
+        let width = img.width;
+        let height = img.height;
+
+        // Calculate new dimensions
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+
+        // Convert to base64 with compression
+        const base64 = canvas.toDataURL('image/jpeg', 0.8);
+        // Remove the "data:image/jpeg;base64," prefix
+        resolve(base64.split(',')[1]);
+      };
+      img.onerror = reject;
     };
-    reader.onerror = error => reject(error);
+    reader.onerror = reject;
   });
 };
-
 
 const ImageUploader: React.FC<ImageUploaderProps> = ({ onImagesSelected }) => {
   const [previews, setPreviews] = useState<ImageFile[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Fix: Abstract file processing to a separate function to handle both change and drop events.
-  // This ensures consistent and type-safe handling of FileList objects, fixing errors where
-  // `file` was being inferred as `unknown`.
   const processFiles = useCallback(async (files: FileList) => {
     const newImageFiles: ImageFile[] = [];
     for (const file of Array.from(files)) {
       if (file.type.startsWith('image/')) {
-        const base64 = await fileToBase64(file);
+        const base64 = await compressImage(file);
         newImageFiles.push({
           file,
           preview: URL.createObjectURL(file),
@@ -57,7 +84,6 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({ onImagesSelected }) => {
     const updatedPreviews = previews.filter((_, i) => i !== index);
     setPreviews(updatedPreviews);
     onImagesSelected(updatedPreviews);
-    // Revoke the object URL to free up memory
     URL.revokeObjectURL(previews[index].preview);
   };
 
